@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-// import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToaster } from '../hooks/useToaster';
 
@@ -13,7 +13,7 @@ interface Article {
 }
 
 export default function Home() {
-  // const { user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToaster();
 
@@ -24,14 +24,45 @@ export default function Home() {
         const response = await window.api.get('/api/articles');
         return response.data?.data || [];
       } catch (err: any) {
-        if (err.response?.data?.error === 'SUBSCRIPTION_REQUIRED') {
+        if (err.response?.status === 401) {
+          showToast('Please log in to view articles', 'error');
+          navigate('/login');
+        } else if (err.response?.data?.error === 'SUBSCRIPTION_REQUIRED') {
           showToast('Please subscribe to read articles', 'error');
           navigate('/pricing');
         }
         throw err;
       }
     },
+    enabled: isAuthenticated, // Only fetch if authenticated
   });
+
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Welcome to REF ArticleHub</h1>
+          <p className="text-xl text-gray-600 mb-8">
+            Your source for premium articles and videos
+          </p>
+          <div className="space-x-4">
+            <Link
+              to="/login"
+              className="inline-block bg-blue-600 text-white px-6 py-3 rounded-md text-lg font-medium hover:bg-blue-700"
+            >
+              Sign in
+            </Link>
+            <Link
+              to="/register"
+              className="inline-block bg-white text-blue-600 px-6 py-3 rounded-md text-lg font-medium border border-blue-600 hover:bg-blue-50"
+            >
+              Sign up
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -57,19 +88,13 @@ export default function Home() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">Latest Articles</h1>
-        <p className="text-xl text-gray-600">
-          Discover our latest insights and stories
-        </p>
-      </div>
-
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {articles?.map((article) => (
-          <article
+          <Link
             key={article.id}
-            className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+            to={`/articles/${article.id}`}
+            className="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
           >
             {article.thumbnail && (
               <img
@@ -79,39 +104,22 @@ export default function Home() {
               />
             )}
             <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">{article.title}</h2>
+              <p className="text-gray-600 mb-4">{article.excerpt}</p>
+              <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500">
                   {new Date(article.created_at).toLocaleDateString()}
                 </span>
                 {article.is_premium && (
-                  <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-sm">
+                  <span className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 rounded-full">
                     Premium
                   </span>
                 )}
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                {article.title}
-              </h2>
-              <p className="text-gray-600 mb-4 line-clamp-3">
-                {article.excerpt}
-              </p>
-              <Link
-                to={`/articles/${article.id}`}
-                className="inline-block bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Read More
-              </Link>
             </div>
-          </article>
+          </Link>
         ))}
       </div>
-
-      {articles?.length === 0 && (
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Articles Available</h2>
-          <p className="text-gray-600">Check back later for new content.</p>
-        </div>
-      )}
     </div>
   );
 } 

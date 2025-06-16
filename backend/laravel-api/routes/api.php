@@ -25,6 +25,7 @@ Route::prefix('auth')->group(function () {
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/plans', [PlanController::class, 'index']);
 
 // Protected routes
 Route::middleware([JwtMiddleware::class])->group(function () {
@@ -41,8 +42,7 @@ Route::middleware([JwtMiddleware::class])->group(function () {
     Route::get('/videos', [VideoController::class, 'index']);
     Route::get('/videos/{video}', [VideoController::class, 'show']);
 
-    // Plan routes
-    Route::get('/plans', [PlanController::class, 'index']);
+    // Plan routes - protected
     Route::get('/plans/{plan}', [PlanController::class, 'show']);
 
     // Subscription routes
