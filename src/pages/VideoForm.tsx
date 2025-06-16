@@ -16,7 +16,6 @@ interface Video {
 export default function VideoForm() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
   const isEditing = Boolean(id);
 
   const [formData, setFormData] = useState({
@@ -27,18 +26,15 @@ export default function VideoForm() {
     is_published: false,
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   // Fetch video data if editing
   const { data: video, isLoading: isLoadingVideo } = useQuery({
     queryKey: ['video', id],
     queryFn: async () => {
       if (!id) return null;
-      const response = await fetch(`http://localhost:8000/api/videos/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) throw new Error('Failed to fetch video');
-      return response.json();
+      const response = await window.api.get(`/api/videos/${id}`);
+      return response.data;
     },
     enabled: isEditing,
   });
@@ -56,35 +52,62 @@ export default function VideoForm() {
     }
   }, [video]);
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.title.trim()) {
+      newErrors.title = 'Title is required';
+    }
+    
+    if (!formData.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+    
+    if (!formData.video_url.trim()) {
+      newErrors.video_url = 'Video URL is required';
+    } else if (!isValidUrl(formData.video_url)) {
+      newErrors.video_url = 'Please enter a valid video URL';
+    }
+    
+    if (!formData.thumbnail_url.trim()) {
+      newErrors.thumbnail_url = 'Thumbnail URL is required';
+    } else if (!isValidUrl(formData.thumbnail_url)) {
+      newErrors.thumbnail_url = 'Please enter a valid thumbnail URL';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const isValidUrl = (url: string) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   // Create or update video mutation
   const mutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const url = isEditing 
-        ? `http://localhost:8000/api/videos/${id}`
-        : 'http://localhost:8000/api/videos';
-      
-      const response = await fetch(url, {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to save video');
+      if (!validateForm()) {
+        throw new Error('Please fix the form errors');
       }
 
-      return response.json();
+      const response = isEditing 
+        ? await window.api.put(`/api/videos/${id}`, data)
+        : await window.api.post('/api/videos', data);
+      
+      return response.data;
     },
     onSuccess: () => {
       toast.success(`Video ${isEditing ? 'updated' : 'created'} successfully`);
       navigate('/dashboard');
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
+    onError: (error: any) => {
+      const message = error.response?.data?.message || error.message;
+      toast.error(message);
     },
   });
 
@@ -99,6 +122,10 @@ export default function VideoForm() {
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   if (isLoadingVideo) {
@@ -127,8 +154,13 @@ export default function VideoForm() {
             value={formData.title}
             onChange={handleChange}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.title ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.title && (
+            <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+          )}
         </div>
 
         <div>
@@ -142,8 +174,13 @@ export default function VideoForm() {
             onChange={handleChange}
             rows={4}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.description ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.description && (
+            <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+          )}
         </div>
 
         <div>
@@ -157,8 +194,14 @@ export default function VideoForm() {
             value={formData.video_url}
             onChange={handleChange}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            placeholder="https://example.com/video.mp4"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.video_url ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.video_url && (
+            <p className="mt-1 text-sm text-red-600">{errors.video_url}</p>
+          )}
         </div>
 
         <div>
@@ -172,8 +215,14 @@ export default function VideoForm() {
             value={formData.thumbnail_url}
             onChange={handleChange}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            placeholder="https://example.com/thumbnail.jpg"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.thumbnail_url ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.thumbnail_url && (
+            <p className="mt-1 text-sm text-red-600">{errors.thumbnail_url}</p>
+          )}
         </div>
 
         <div className="flex items-center">

@@ -3,6 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { useToaster } from '../hooks/useToaster';
+import React from 'react';
+
+interface Article {
+  title: string;
+  content: string;
+  featured_image?: string;
+  is_published: boolean;
+}
 
 interface ArticleFormData {
   title: string;
@@ -27,22 +35,26 @@ export default function ArticleForm() {
   });
 
   // Fetch article data if editing
-  const { data: article, isLoading: isLoadingArticle } = useQuery({
+  const { data: article, isLoading: isLoadingArticle } = useQuery<Article>({
     queryKey: ['article', id],
     queryFn: async () => {
       const response = await window.api.get(`/api/articles/${id}`);
       return response.data;
     },
     enabled: isEditing && !!id,
-    onSuccess: (data) => {
-      setFormData({
-        title: data.title,
-        content: data.content,
-        featured_image: data.featured_image || '',
-        is_published: data.is_published,
-      });
-    },
   });
+
+  // Update form data when article data is loaded
+  React.useEffect(() => {
+    if (article) {
+      setFormData({
+        title: article.title,
+        content: article.content,
+        featured_image: article.featured_image || '',
+        is_published: article.is_published,
+      });
+    }
+  }, [article]);
 
   // Create/Update article mutation
   const mutation = useMutation({

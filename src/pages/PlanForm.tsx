@@ -18,7 +18,6 @@ interface Plan {
 export default function PlanForm() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { token } = useAuth();
   const isEditing = Boolean(id);
 
   const [formData, setFormData] = useState({
@@ -31,18 +30,15 @@ export default function PlanForm() {
     is_active: true,
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   // Fetch plan data if editing
   const { data: plan, isLoading: isLoadingPlan } = useQuery({
     queryKey: ['plan', id],
     queryFn: async () => {
       if (!id) return null;
-      const response = await fetch(`http://localhost:8000/api/plans/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) throw new Error('Failed to fetch plan');
-      return response.json();
+      const response = await window.api.get(`/api/plans/${id}`);
+      return response.data;
     },
     enabled: isEditing,
   });
@@ -62,46 +58,71 @@ export default function PlanForm() {
     }
   }, [plan]);
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.name.trim()) {
+      newErrors.name = 'Plan name is required';
+    }
+    
+    if (!formData.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+    
+    if (formData.price < 0) {
+      newErrors.price = 'Price cannot be negative';
+    }
+    
+    if (formData.daily_article_limit < -1) {
+      newErrors.daily_article_limit = 'Daily article limit must be -1 or greater';
+    }
+    
+    if (formData.daily_video_limit < -1) {
+      newErrors.daily_video_limit = 'Daily video limit must be -1 or greater';
+    }
+
+    // Validate features
+    const validFeatures = formData.features.filter(f => f.trim() !== '');
+    if (validFeatures.length === 0) {
+      newErrors.features = 'At least one feature is required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   // Create or update plan mutation
   const mutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const url = isEditing 
-        ? `http://localhost:8000/api/plans/${id}`
-        : 'http://localhost:8000/api/plans';
-      
-      const response = await fetch(url, {
-        method: isEditing ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to save plan');
+      if (!validateForm()) {
+        throw new Error('Please fix the form errors');
       }
 
-      return response.json();
+      // Filter out empty features and prepare data
+      const cleanedData = {
+        ...data,
+        features: data.features.filter(feature => feature.trim() !== ''),
+      };
+
+      const response = isEditing 
+        ? await window.api.put(`/api/plans/${id}`, cleanedData)
+        : await window.api.post('/api/plans', cleanedData);
+      
+      return response.data;
     },
     onSuccess: () => {
       toast.success(`Plan ${isEditing ? 'updated' : 'created'} successfully`);
       navigate('/dashboard');
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
+    onError: (error: any) => {
+      const message = error.response?.data?.message || error.message;
+      toast.error(message);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Filter out empty features
-    const cleanedData = {
-      ...formData,
-      features: formData.features.filter(feature => feature.trim() !== ''),
-    };
-    mutation.mutate(cleanedData);
+    mutation.mutate(formData);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -111,28 +132,37 @@ export default function PlanForm() {
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : 
               type === 'number' ? Number(value) : value,
     }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleFeatureChange = (index: number, value: string) => {
     setFormData(prev => {
       const newFeatures = [...prev.features];
       newFeatures[index] = value;
+      // Add a new empty feature field if this is the last one and it's not empty
+      if (index === prev.features.length - 1 && value.trim() !== '') {
+        newFeatures.push('');
+      }
       return { ...prev, features: newFeatures };
     });
-  };
-
-  const addFeature = () => {
-    setFormData(prev => ({
-      ...prev,
-      features: [...prev.features, ''],
-    }));
+    // Clear feature error if any
+    if (errors.features) {
+      setErrors(prev => ({ ...prev, features: '' }));
+    }
   };
 
   const removeFeature = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      features: prev.features.filter((_, i) => i !== index),
-    }));
+    setFormData(prev => {
+      const newFeatures = prev.features.filter((_, i) => i !== index);
+      // Ensure there's always at least one feature field
+      if (newFeatures.length === 0) {
+        newFeatures.push('');
+      }
+      return { ...prev, features: newFeatures };
+    });
   };
 
   if (isLoadingPlan) {
@@ -161,8 +191,13 @@ export default function PlanForm() {
             value={formData.name}
             onChange={handleChange}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.name ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.name && (
+            <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+          )}
         </div>
 
         <div>
@@ -176,8 +211,13 @@ export default function PlanForm() {
             onChange={handleChange}
             rows={4}
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.description ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.description && (
+            <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+          )}
         </div>
 
         <div>
@@ -193,8 +233,13 @@ export default function PlanForm() {
             min="0"
             step="0.01"
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.price ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.price && (
+            <p className="mt-1 text-sm text-red-600">{errors.price}</p>
+          )}
         </div>
 
         <div>
@@ -209,8 +254,13 @@ export default function PlanForm() {
             onChange={handleChange}
             min="-1"
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.daily_article_limit ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.daily_article_limit && (
+            <p className="mt-1 text-sm text-red-600">{errors.daily_article_limit}</p>
+          )}
         </div>
 
         <div>
@@ -225,14 +275,22 @@ export default function PlanForm() {
             onChange={handleChange}
             min="-1"
             required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className={`mt-1 block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+              errors.daily_video_limit ? 'border-red-300' : 'border-gray-300'
+            }`}
           />
+          {errors.daily_video_limit && (
+            <p className="mt-1 text-sm text-red-600">{errors.daily_video_limit}</p>
+          )}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Features
           </label>
+          {errors.features && (
+            <p className="mb-2 text-sm text-red-600">{errors.features}</p>
+          )}
           {formData.features.map((feature, index) => (
             <div key={index} className="flex gap-2 mb-2">
               <input
@@ -242,22 +300,17 @@ export default function PlanForm() {
                 placeholder="Enter a feature"
                 className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               />
-              <button
-                type="button"
-                onClick={() => removeFeature(index)}
-                className="px-3 py-2 text-red-600 hover:text-red-800"
-              >
-                Remove
-              </button>
+              {formData.features.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeFeature(index)}
+                  className="px-3 py-2 text-red-600 hover:text-red-800"
+                >
+                  Remove
+                </button>
+              )}
             </div>
           ))}
-          <button
-            type="button"
-            onClick={addFeature}
-            className="mt-2 text-sm text-blue-600 hover:text-blue-800"
-          >
-            + Add Feature
-          </button>
         </div>
 
         <div className="flex items-center">

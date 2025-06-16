@@ -6,29 +6,25 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+    public function up()
     {
         Schema::create('plans', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('slug')->unique();
             $table->text('description')->nullable();
-            $table->enum('type', ['PRO_READER', 'PLUS_READER', 'FREE']);
-            $table->integer('daily_article_limit');
-            $table->integer('daily_video_limit');
+            $table->string('type');
+            $table->decimal('price', 10, 2)->default(0);
+            $table->integer('daily_article_limit')->default(0);
+            $table->integer('daily_video_limit')->default(0);
+            $table->json('features')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
+    public function down()
     {
         Schema::dropIfExists('plans');
     }
-};
+}; 

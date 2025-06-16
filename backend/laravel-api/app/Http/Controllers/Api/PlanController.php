@@ -87,22 +87,23 @@ class PlanController extends Controller
                 'name' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'type' => 'required|in:PRO_READER,PLUS_READER,FREE',
-                'daily_article_limit' => 'required|integer|min:0',
-                'daily_video_limit' => 'required|integer|min:0',
-                'is_active' => 'boolean'
+                'price' => 'required|numeric|min:0',
+                'daily_article_limit' => 'required|integer|min:-1',
+                'daily_video_limit' => 'required|integer|min:-1',
+                'is_active' => 'boolean',
+                'features' => 'array',
+                'features.*' => 'string|max:255'
             ]);
 
-            dump("Validated data (before slug):", $validated);
-            $finalData = array_merge($validated, [ 'slug' => Str::slug($validated['name']) ]);
-            dump("Final data (after merge):", $finalData);
-            try {
-                $plan = Plan::create($finalData);
-                dump("SQL query (or exception) after Plan::create:", DB::getQueryLog());
-            } catch (\Exception $e) {
-                dump("Exception (or query log) on Plan::create:", $e->getMessage());
-                dump("Final data (insert payload):", $finalData);
-                throw $e;
+            // Create slug from name
+            $validated['slug'] = Str::slug($validated['name']);
+
+            // Store features as JSON
+            if (isset($validated['features'])) {
+                $validated['features'] = json_encode(array_filter($validated['features']));
             }
+
+            $plan = Plan::create($validated);
             return response()->json($plan, 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -146,6 +147,11 @@ class PlanController extends Controller
                     'message' => 'Plan not found',
                     'error' => 'PLAN_NOT_FOUND'
                 ], 404);
+            }
+
+            // Decode features from JSON if they exist
+            if ($plan->features) {
+                $plan->features = json_decode($plan->features, true) ?? [];
             }
 
             return response()->json($plan);
@@ -202,15 +208,34 @@ class PlanController extends Controller
             }
 
             $validated = $request->validate([
-                'name' => 'string|max:255',
+                'name' => 'required|string|max:255',
                 'description' => 'nullable|string',
-                'type' => 'in:PRO_READER,PLUS_READER,FREE',
-                'daily_article_limit' => 'integer|min:0',
-                'daily_video_limit' => 'integer|min:0',
-                'is_active' => 'boolean'
+                'type' => 'required|in:PRO_READER,PLUS_READER,FREE',
+                'price' => 'required|numeric|min:0',
+                'daily_article_limit' => 'required|integer|min:-1',
+                'daily_video_limit' => 'required|integer|min:-1',
+                'is_active' => 'boolean',
+                'features' => 'array',
+                'features.*' => 'string|max:255'
             ]);
 
+            // Update slug if name changed
+            if ($validated['name'] !== $plan->name) {
+                $validated['slug'] = Str::slug($validated['name']);
+            }
+
+            // Store features as JSON
+            if (isset($validated['features'])) {
+                $validated['features'] = json_encode(array_filter($validated['features']));
+            }
+
             $plan->update($validated);
+            
+            // Decode features for response
+            if ($plan->features) {
+                $plan->features = json_decode($plan->features, true) ?? [];
+            }
+
             return response()->json($plan);
         } catch (ValidationException $e) {
             return response()->json([
