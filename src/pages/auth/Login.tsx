@@ -11,35 +11,37 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, login, isLoading, error, clearError } = useAuth();
+  const { user, isAuthenticated, login } = useAuth();
   const { showToast } = useToaster();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated) {
       const from = (location.state as LocationState)?.from || searchParams.get('redirect') || '/';
       navigate(from, { replace: true });
     }
-  }, [user, navigate, location.state, searchParams]);
+  }, [isAuthenticated, navigate, location.state, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    clearError();
+    setIsLoggingIn(true);
 
     try {
       await login(email, password);
-      showToast('Successfully logged in!', 'success');
       const from = (location.state as LocationState)?.from || searchParams.get('redirect') || '/';
       navigate(from, { replace: true });
     } catch (err: any) {
-      const message = err.response?.data?.message || 'Failed to login';
-      showToast(message, 'error');
+      showToast(err.response?.data?.message || 'Failed to login', 'error');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
   const handleSocialLogin = async (provider: 'google' | 'meta') => {
+    setIsLoggingIn(true);
     try {
       // For now, we'll just simulate a successful login
       // In a real app, you would implement OAuth flow here
@@ -47,8 +49,9 @@ export default function Login() {
       const from = (location.state as LocationState)?.from || searchParams.get('redirect') || '/';
       navigate(from, { replace: true });
     } catch (err: any) {
-      const message = `Failed to login with ${provider}`;
-      showToast(message, 'error');
+      showToast(`Failed to login with ${provider}`, 'error');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -70,12 +73,6 @@ export default function Login() {
           </p>
         </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
-            {error}
-          </div>
-        )}
-
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
@@ -92,7 +89,7 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
-                disabled={isLoading}
+                disabled={isLoggingIn}
               />
             </div>
             <div>
@@ -109,7 +106,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
-                disabled={isLoading}
+                disabled={isLoggingIn}
               />
             </div>
           </div>
@@ -117,10 +114,10 @@ export default function Login() {
           <div>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoggingIn}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? (
+              {isLoggingIn ? (
                 <span className="flex items-center">
                   <svg
                     className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
@@ -166,7 +163,7 @@ export default function Login() {
           <div className="mt-6 grid grid-cols-2 gap-3">
             <button
               onClick={() => handleSocialLogin('google')}
-              disabled={isLoading}
+              disabled={isLoggingIn}
               className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -179,7 +176,7 @@ export default function Login() {
             </button>
             <button
               onClick={() => handleSocialLogin('meta')}
-              disabled={isLoading}
+              disabled={isLoggingIn}
               className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">

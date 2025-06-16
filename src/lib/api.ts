@@ -9,6 +9,23 @@ const api = axios.create({
   },
 });
 
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: any) => void;
+}> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token!);
+    }
+  });
+  failedQueue = [];
+};
+
 // Add request interceptor to include token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -16,6 +33,8 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 // Add response interceptor to handle token refresh
@@ -26,7 +45,25 @@ api.interceptors.response.use(
 
     // If error is 401 and we haven't tried to refresh token yet
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        // If a refresh is already in progress, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(token => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch(err => {
+            // If refresh fails, redirect to login
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+            return Promise.reject(err);
+          });
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
         // Try to refresh the token
@@ -38,20 +75,34 @@ api.interceptors.response.use(
 
         // Update the failed request with new token
         originalRequest.headers.Authorization = `Bearer ${token}`;
+
+        // Process any queued requests
+        processQueue(null, token);
+
+        // Retry the original request
         return api(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         // If refresh fails, clear token and redirect to login
+        processQueue(refreshError, null);
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        
+        // Only redirect if we're not already on the login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+        
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 
+    // For other errors, just reject
     return Promise.reject(error);
   }
 );
 
-// Make api available globally
+// Make the configured axios instance available globally
 window.api = api;
 
 export default api; 

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '../hooks/useAuth';
+// import { useAuth } from '../hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToaster } from '../hooks/useToaster';
 
@@ -13,7 +13,7 @@ interface Article {
 }
 
 export default function Home() {
-  const { user } = useAuth();
+  // const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToaster();
 

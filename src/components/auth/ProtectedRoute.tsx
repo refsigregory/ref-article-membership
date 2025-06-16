@@ -7,21 +7,13 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, isLoading } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && user.role !== 'ADMIN') {
+  if (requireAdmin && user?.role !== 'ADMIN') {
     return <Navigate to="/" replace />;
   }
 

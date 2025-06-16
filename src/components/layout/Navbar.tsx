@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Disclosure, Menu, Transition } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
@@ -12,10 +12,12 @@ function classNames(...classes: string[]) {
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout } = useAuth();
   const { showToast } = useToaster();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await logout();
       showToast('Successfully logged out!', 'success');
@@ -23,6 +25,8 @@ export default function Navbar() {
     } catch (err: any) {
       const message = err.response?.data?.message || 'Failed to logout';
       showToast(message, 'error');
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -44,7 +48,7 @@ export default function Navbar() {
               <div className="flex">
                 <div className="flex flex-shrink-0 items-center">
                   <Link to="/" className="text-2xl font-bold text-blue-600">
-                    LOGO
+                    REF ArticleHub
                   </Link>
                 </div>
                 <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
@@ -106,13 +110,13 @@ export default function Navbar() {
                           {({ active }) => (
                             <button
                               onClick={handleLogout}
-                              disabled={isLoading}
+                              disabled={isLoggingOut}
                               className={classNames(
                                 active ? 'bg-gray-100' : '',
                                 'block w-full text-left px-4 py-2 text-sm text-gray-700 disabled:opacity-50'
                               )}
                             >
-                              {isLoading ? 'Signing out...' : 'Sign out'}
+                              {isLoggingOut ? 'Signing out...' : 'Sign out'}
                             </button>
                           )}
                         </Menu.Item>
@@ -200,10 +204,10 @@ export default function Navbar() {
                     <Disclosure.Button
                       as="button"
                       onClick={handleLogout}
-                      disabled={isLoading}
+                      disabled={isLoggingOut}
                       className="block w-full text-left px-4 py-2 text-base font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isLoading ? 'Signing out...' : 'Sign out'}
+                      {isLoggingOut ? 'Signing out...' : 'Sign out'}
                     </Disclosure.Button>
                   </div>
                 </>

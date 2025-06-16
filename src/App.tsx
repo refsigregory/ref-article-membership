@@ -8,7 +8,6 @@ import Pricing from './pages/Pricing';
 import Dashboard from './pages/Dashboard';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { Toaster } from './components/ui/Toaster';
-import { useAuth } from "./hooks/useAuth";
 import { Suspense } from 'react';
 import ArticleDetail from './pages/ArticleDetail';
 import Videos from './pages/Videos';
@@ -21,8 +20,6 @@ const queryClient = new QueryClient();
 
 // Root layout component
 function RootLayout() {
-  const { user, isLoading } = useAuth();
-  
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -65,11 +62,7 @@ const router = createBrowserRouter(
       children: [
         {
           path: '/',
-          element: (
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          ),
+          element: <Home />,
         },
         {
           path: '/login',
@@ -82,14 +75,6 @@ const router = createBrowserRouter(
         {
           path: '/pricing',
           element: <Pricing />,
-        },
-        {
-          path: '/dashboard',
-          element: (
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          ),
         },
         {
           path: '/articles/:id',
@@ -116,7 +101,23 @@ const router = createBrowserRouter(
           ),
         },
         {
-          path: '/admin/articles/new',
+          path: '/dashboard',
+          element: (
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: '/dashboard/:tab',
+          element: (
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: '/dashboard/articles/new',
           element: (
             <ProtectedRoute requireAdmin>
               <ArticleForm />
@@ -124,7 +125,7 @@ const router = createBrowserRouter(
           ),
         },
         {
-          path: '/admin/articles/:id/edit',
+          path: '/dashboard/articles/:id/edit',
           element: (
             <ProtectedRoute requireAdmin>
               <ArticleForm />
@@ -132,7 +133,7 @@ const router = createBrowserRouter(
           ),
         },
         {
-          path: '/admin/videos/new',
+          path: '/dashboard/videos/new',
           element: (
             <ProtectedRoute requireAdmin>
               <VideoForm />
@@ -140,7 +141,7 @@ const router = createBrowserRouter(
           ),
         },
         {
-          path: '/admin/videos/:id/edit',
+          path: '/dashboard/videos/:id/edit',
           element: (
             <ProtectedRoute requireAdmin>
               <VideoForm />
@@ -148,7 +149,7 @@ const router = createBrowserRouter(
           ),
         },
         {
-          path: '/admin/plans/new',
+          path: '/dashboard/plans/new',
           element: (
             <ProtectedRoute requireAdmin>
               <PlanForm />
@@ -156,7 +157,7 @@ const router = createBrowserRouter(
           ),
         },
         {
-          path: '/admin/plans/:id/edit',
+          path: '/dashboard/plans/:id/edit',
           element: (
             <ProtectedRoute requireAdmin>
               <PlanForm />
@@ -174,7 +175,6 @@ const router = createBrowserRouter(
 );
 
 function App() {
-  const { user, isLoading } = useAuth();
   return (
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />

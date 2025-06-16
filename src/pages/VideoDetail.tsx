@@ -105,7 +105,7 @@ export default function VideoDetail() {
           </div>
           {user?.role === 'ADMIN' && (
             <button
-              onClick={() => navigate(`/admin/videos/${video.id}/edit`)}
+              onClick={() => navigate(`/dashboard/videos/${video.id}/edit`)}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               Edit Video

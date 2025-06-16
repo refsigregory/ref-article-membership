@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 
@@ -26,36 +26,41 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  isLoading: boolean;
-  error: string | null;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  clearError: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  // Fetch user data
-  const { data: user, isLoading, refetch } = useQuery({
+  // Simple user query - only runs if we have a token
+  const { data: user } = useQuery({
     queryKey: ['user'],
     queryFn: async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return null;
+
       try {
         const response = await window.api.get('/api/user');
         return response.data;
       } catch (err: any) {
         if (err.response?.status === 401) {
           localStorage.removeItem('token');
-          return null;
         }
-        throw err;
+        return null;
       }
     },
+    // Only run if we have a token
+    enabled: !!localStorage.getItem('token'),
+    // Don't retry or refetch automatically
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false
   });
 
   // Login mutation
@@ -66,62 +71,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('token', token);
       return user;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user'] });
+    onSuccess: (user) => {
+      queryClient.setQueryData(['user'], user);
       toast.success('Successfully logged in!');
     },
     onError: (err: any) => {
-      const message = err.response?.data?.message || 'Failed to login';
-      setError(message);
-      toast.error(message);
-    },
+      localStorage.removeItem('token');
+      queryClient.setQueryData(['user'], null);
+      toast.error(err.response?.data?.message || 'Failed to login');
+    }
   });
 
   // Register mutation
   const registerMutation = useMutation({
     mutationFn: async ({ name, email, password }: { name: string; email: string; password: string }) => {
-      const response = await window.api.post('/api/register', { name, email, password, password_confirmation: password });
+      const response = await window.api.post('/api/register', { 
+        name, 
+        email, 
+        password, 
+        password_confirmation: password 
+      });
       const { token, user } = response.data;
       localStorage.setItem('token', token);
       return user;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user'] });
+    onSuccess: (user) => {
+      queryClient.setQueryData(['user'], user);
       toast.success('Successfully registered!');
     },
     onError: (err: any) => {
-      const message = err.response?.data?.message || 'Failed to register';
-      setError(message);
-      toast.error(message);
-    },
+      localStorage.removeItem('token');
+      queryClient.setQueryData(['user'], null);
+      toast.error(err.response?.data?.message || 'Failed to register');
+    }
   });
 
-  const login = async (email: string, password: string) => {
-    setError(null);
-    await loginMutation.mutateAsync({ email, password });
+  // Logout function
+  const logout = async () => {
+    try {
+      if (localStorage.getItem('token')) {
+        await window.api.post('/api/logout');
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      localStorage.removeItem('token');
+      queryClient.setQueryData(['user'], null);
+      toast.success('Successfully logged out!');
+    }
   };
-
-  const register = async (name: string, email: string, password: string) => {
-    setError(null);
-    await registerMutation.mutateAsync({ name, email, password });
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    queryClient.setQueryData(['user'], null);
-    toast.success('Successfully logged out!');
-  };
-
-  const clearError = () => setError(null);
 
   const value = {
     user: user || null,
-    isLoading,
-    error,
-    login,
-    register,
-    logout,
-    clearError,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'ADMIN',
+    login: (email: string, password: string) => loginMutation.mutateAsync({ email, password }),
+    register: (name: string, email: string, password: string) => 
+      registerMutation.mutateAsync({ name, email, password }),
+    logout
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -133,19 +140,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
-
-export function useInitializeAuth() {
-  const { user, isLoading } = useAuth();
-  const token = localStorage.getItem('token');
-
-  useEffect(() => {
-    if (token && !user && !isLoading) {
-      // If we have a token but no user data, try to fetch user data
-      window.api.get('/api/user').catch(() => {
-        // If the token is invalid, clear it
-        localStorage.removeItem('token');
-      });
-    }
-  }, [token, user, isLoading]);
 } 
