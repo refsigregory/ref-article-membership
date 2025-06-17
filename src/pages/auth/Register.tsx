@@ -1,11 +1,17 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useToaster } from '../../hooks/useToaster';
 
+interface LocationState {
+  from?: string;
+}
+
 export default function Register() {
   const navigate = useNavigate();
-  const { register, isLoading } = useAuth();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { user, isAuthenticated, register, isLoading } = useAuth();
   const { addToast } = useToaster();
   const [formData, setFormData] = useState({
     name: '',
@@ -14,6 +20,14 @@ export default function Register() {
     password_confirmation: '',
   });
   const [error, setError] = useState('');
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated) {
+      const from = (location.state as LocationState)?.from || searchParams.get('redirect') || '/dashboard';
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location.state, searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -34,7 +48,8 @@ export default function Register() {
     try {
       await register(formData.name, formData.email, formData.password);
       addToast('Successfully registered!', 'success');
-      navigate('/dashboard');
+      const from = (location.state as LocationState)?.from || searchParams.get('redirect') || '/dashboard';
+      navigate(from, { replace: true });
     } catch (err: any) {
       const message = err.response?.data?.message || 'Failed to register';
       setError(message);
@@ -48,7 +63,8 @@ export default function Register() {
       // In a real app, you would implement OAuth flow here
       await new Promise((resolve) => setTimeout(resolve, 1000));
       addToast(`Successfully registered with ${provider}!`, 'success');
-      navigate('/dashboard');
+      const from = (location.state as LocationState)?.from || searchParams.get('redirect') || '/dashboard';
+      navigate(from, { replace: true });
     } catch (err: any) {
       const message = `Failed to register with ${provider}`;
       setError(message);

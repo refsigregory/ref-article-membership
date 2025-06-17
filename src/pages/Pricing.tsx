@@ -14,8 +14,24 @@ interface Plan {
   is_active: boolean;
 }
 
+interface Subscription {
+  id: number;
+  plan: {
+    id: number;
+    name: string;
+    type: 'PRO_READER' | 'PLUS_READER' | 'FREE';
+    daily_article_limit: number;
+    daily_video_limit: number;
+  };
+  status: 'active' | 'cancelled' | 'expired';
+  start_date: string;
+  end_date: string | null;
+  articles_read_today: number;
+  videos_watched_today: number;
+}
+
 export default function Pricing() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToaster();
 
@@ -25,6 +41,40 @@ export default function Pricing() {
       const response = await window.api.get('/api/plans');
       return response.data;
     },
+  });
+
+  // Fetch current subscription if user is authenticated
+  const { data: currentSubscription } = useQuery<Subscription | null>({
+    queryKey: ['current-subscription'],
+    queryFn: async () => {
+      try {
+        const response = await window.api.get('/api/subscriptions/current');
+        const data = response.data;
+        
+        return {
+          id: data.id,
+          plan: {
+            id: data.plan.id,
+            name: data.plan.name,
+            type: data.plan.type,
+            daily_article_limit: data.plan.daily_article_limit,
+            daily_video_limit: data.plan.daily_video_limit,
+          },
+          status: data.is_active ? 'active' : (data.ends_at ? 'expired' : 'cancelled'),
+          start_date: data.starts_at,
+          end_date: data.ends_at,
+          articles_read_today: data.articles_read_today || 0,
+          videos_watched_today: data.videos_watched_today || 0,
+        } as Subscription;
+      } catch (error: any) {
+        if (error.response?.status === 404 && error.response.data?.error === 'NO_ACTIVE_SUBSCRIPTION') {
+          return null;
+        }
+        throw error;
+      }
+    },
+    enabled: isAuthenticated,
+    retry: false,
   });
 
   const subscribeMutation = useMutation({
@@ -41,6 +91,25 @@ export default function Pricing() {
       showToast(message, 'error');
     },
   });
+
+  const handleSubscribe = (planId: number) => {
+    if (!isAuthenticated) {
+      // Redirect to login with return URL
+      navigate('/login', { 
+        state: { from: '/pricing' },
+        replace: true 
+      });
+      return;
+    }
+
+    // Check if user already has an active subscription
+    if (currentSubscription?.status === 'active') {
+      showToast('You already have an active subscription', 'info');
+      return;
+    }
+
+    subscribeMutation.mutate(planId);
+  };
 
   if (isLoading) {
     return (
@@ -85,6 +154,38 @@ export default function Pricing() {
     return features;
   };
 
+  const isCurrentPlan = (plan: Plan) => {
+    return currentSubscription?.status === 'active' && currentSubscription.plan.id === plan.id;
+  };
+
+  const getButtonText = (plan: Plan) => {
+    if (!isAuthenticated) {
+      return 'Sign in to Subscribe';
+    }
+    
+    if (isCurrentPlan(plan)) {
+      return 'Current Plan';
+    }
+    
+    if (currentSubscription?.status === 'active') {
+      return 'Switch Plan';
+    }
+    
+    return 'Subscribe Now';
+  };
+
+  const getButtonClasses = (plan: Plan) => {
+    if (isCurrentPlan(plan)) {
+      return 'w-full py-3 px-4 rounded-md text-white font-medium bg-green-600 cursor-default';
+    }
+    
+    if (plan.type === 'PRO_READER') {
+      return 'w-full py-3 px-4 rounded-md text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed';
+    }
+    
+    return 'w-full py-3 px-4 rounded-md text-white font-medium bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed';
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-12">
@@ -92,6 +193,45 @@ export default function Pricing() {
         <p className="text-xl text-gray-600">
           Select the perfect plan for your reading needs
         </p>
+        
+        {/* Show current subscription status if authenticated */}
+        {isAuthenticated && currentSubscription && (
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <p className="text-blue-800">
+              Current Plan: <span className="font-semibold">{currentSubscription.plan.name}</span>
+              {currentSubscription.status === 'active' && (
+                <span className="ml-2 text-green-600">(Active)</span>
+              )}
+              {currentSubscription.status === 'expired' && (
+                <span className="ml-2 text-red-600">(Expired)</span>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* Show authentication prompt for unauthenticated users */}
+        {!isAuthenticated && (
+          <div className="mt-6 p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-2">Sign in to Subscribe</h3>
+            <p className="text-yellow-700 mb-4">
+              You need to create an account or sign in to subscribe to our plans.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => navigate('/login', { state: { from: '/pricing' }, replace: true })}
+                className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 font-medium"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => navigate('/register', { state: { from: '/pricing' }, replace: true })}
+                className="bg-white text-blue-600 px-6 py-2 rounded-md border border-blue-600 hover:bg-blue-50 font-medium"
+              >
+                Create Account
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -100,7 +240,7 @@ export default function Pricing() {
             key={plan.id}
             className={`bg-white rounded-lg shadow-lg overflow-hidden ${
               plan.type === 'PRO_READER' ? 'ring-2 ring-blue-500' : ''
-            }`}
+            } ${isCurrentPlan(plan) ? 'ring-2 ring-green-500' : ''}`}
           >
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h2>
@@ -126,18 +266,14 @@ export default function Pricing() {
                 ))}
               </ul>
               <button
-                onClick={() => subscribeMutation.mutate(plan.id)}
-                disabled={subscribeMutation.isPending || !plan.is_active}
-                className={`w-full py-3 px-4 rounded-md text-white font-medium ${
-                  plan.type === 'PRO_READER'
-                    ? 'bg-blue-600 hover:bg-blue-700'
-                    : 'bg-gray-600 hover:bg-gray-700'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                onClick={() => handleSubscribe(plan.id)}
+                disabled={subscribeMutation.isPending || !plan.is_active || isCurrentPlan(plan)}
+                className={getButtonClasses(plan)}
               >
                 {subscribeMutation.isPending
                   ? 'Processing...'
                   : plan.is_active
-                  ? 'Subscribe Now'
+                  ? getButtonText(plan)
                   : 'Coming Soon'}
               </button>
             </div>
