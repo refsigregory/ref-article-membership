@@ -67,19 +67,21 @@ class ArticleController extends Controller
                     ], 403);
                 }
 
+                /*
+                // no daily limit for listing
                 $dailyLimit = $activeSubscription->plan->daily_article_limit;
                 $todayArticles = $user->articleViews()
                     ->whereDate('created_at', today())
                     ->count();
 
-                if ($todayArticles >= $dailyLimit) {
+                if ($dailyLimit > 0 && $todayArticles >= $dailyLimit) {
                     return response()->json([
                         'message' => 'Daily article limit reached',
                         'error' => 'DAILY_LIMIT_REACHED',
                         'limit' => $dailyLimit,
                         'used' => $todayArticles
                     ], 403);
-                }
+                } */
             }
 
             $articles = $query->latest()->paginate(10);
@@ -206,7 +208,7 @@ class ArticleController extends Controller
                     ->whereDate('created_at', today())
                     ->count();
 
-                if ($todayArticles >= $dailyLimit) {
+                if ($dailyLimit > 0 && $todayArticles >= $dailyLimit) {
                     return response()->json([
                         'message' => 'Daily article limit reached',
                         'error' => 'DAILY_LIMIT_REACHED',

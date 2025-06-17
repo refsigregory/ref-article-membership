@@ -7,7 +7,7 @@ interface Video {
   id: number;
   title: string;
   description: string;
-  thumbnail: string;
+  thumbnail_url: string;
   video_url: string;
   is_premium: boolean;
   created_at: string;
@@ -67,7 +67,7 @@ export default function Videos() {
           >
             <div className="relative">
               <img
-                src={video.thumbnail}
+                src={video.thumbnail_url}
                 alt={video.title}
                 className="w-full h-48 object-cover"
               />

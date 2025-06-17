@@ -21,7 +21,7 @@ interface Article {
 export default function ArticleDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  // const { user } = useAuth();
   const { showToast } = useToaster();
 
   const { data: article, isLoading, error } = useQuery<Article>({
@@ -41,6 +41,8 @@ export default function ArticleDetail() {
     enabled: !!id,
   });
 
+  const errorCode = (error as any)?.response?.data?.error;
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -50,6 +52,37 @@ export default function ArticleDetail() {
   }
 
   if (error) {
+
+    if (errorCode === 'SUBSCRIPTION_REQUIRED') {
+      return (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Subscription Required</h1>
+          <p className="text-gray-600 mb-8">Please subscribe to read this article.</p>
+          <button
+            onClick={() => navigate('/pricing')}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Subscribe Now
+          </button>
+        </div>
+      );
+    }
+
+    if (errorCode === 'DAILY_LIMIT_REACHED') {
+      return (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Daily Limit Reached</h1>
+          <p className="text-gray-600 mb-8">You have reached the daily limit for reading articles.</p>
+          <button
+            onClick={() => navigate('/pricing')}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Upgrade Subscription
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Error Loading Article</h1>
@@ -103,14 +136,14 @@ export default function ArticleDetail() {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            code({ node, inline, className, children, ...props }) {
+            code({ node, className, children, ...props }, { inline }) {
               const match = /language-(\w+)/.exec(className || '');
               return !inline && match ? (
                 <SyntaxHighlighter
-                  style={vscDarkPlus}
+                  style={vscDarkPlus as any}
                   language={match[1]}
                   PreTag="div"
-                  {...props}
+                  {...Object.fromEntries(Object.entries(props).filter(([k]) => k !== 'ref'))}
                 >
                   {String(children).replace(/\n$/, '')}
                 </SyntaxHighlighter>
