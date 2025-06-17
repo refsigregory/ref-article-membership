@@ -104,8 +104,9 @@ export default function Pricing() {
 
     // Check if user already has an active subscription
     if (currentSubscription?.status === 'active') {
-      showToast('You already have an active subscription', 'info');
-      return;
+      // TODO: re-show this toast when user already has an active subscription
+      // showToast('You already have an active subscription', 'info');
+      // return;
     }
 
     subscribeMutation.mutate(planId);
